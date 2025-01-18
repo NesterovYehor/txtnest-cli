@@ -7,6 +7,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const label = `
+ _          _                      _   
+| |        | |                    | |  
+| |_ __  __| |_  _ __    ___  ___ | |_ 
+| __|\ \/ /| __|| '_ \  / _ \/ __|| __|
+| |_  >  < | |_ | | | ||  __/\__ \| |_ 
+ \__|/_/\_\ \__||_| |_| \___||___/ \__|
+    `
+
 type page = int
 
 const (
@@ -14,17 +23,11 @@ const (
 	heightCof = 0.6
 )
 
-const (
-	createPastePage page = iota
-	readPastePage
-	accountPage
-	aboutPage
-)
-
 var choices = []list.Item{
 	Choice{title: "Create Paste", description: "Create a new paste"},
 	Choice{title: "Read Paste", description: "View pastes"},
 	Choice{title: "Account", description: "Manage your account"},
+	Choice{title: "About", description: "Details about the project"},
 	Choice{title: "Exit", description: "Exit the application"},
 }
 
@@ -57,19 +60,20 @@ type App struct {
 
 // AppModel represents the main application model
 type AppModel struct {
-	page       page
 	app        *App
 	isMenuMode bool
 	menu       list.Model
 	content    tea.Model
 }
 
-// NewAppModel creates the main application model
-func NewAppModel() AppModel {
+// NewAppModel creates the main application model with the config
+func NewAppModel(backendURL string) AppModel {
 	cvs := NewCanvas()
-	httpClient := api.NewClient("http://34.201.148.169:80") // Initialize the HTTP client
+	httpClient := api.NewClient(backendURL) // Use the backendURL from config
 	menu := list.New(choices, list.NewDefaultDelegate(), 0, 0)
-	menu.Title = "m menu"
+	menu.DisableQuitKeybindings()
+	menu.SetShowHelp(false)
+	menu.Title = "Menu"
 	app := &App{
 		canvas: cvs,
 		client: httpClient,
@@ -130,8 +134,8 @@ func (m AppModel) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.isMenuMode = false
 				return m, nil
 			case "Account":
-				// Implement AccountModel
-				// return NewAccountModel(m.app, m), nil
+				m.isMenuMode = false
+				return m, nil
 			case "Exit":
 				return m, tea.Quit
 			}
@@ -144,6 +148,12 @@ func (m AppModel) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "Read Paste":
 				m.content = newKeyInputModel(m.app)
+				return m, nil
+			case "Account":
+				m.content = newAccountModel(m.app)
+				return m, nil
+			case "About":
+				m.content = newAboutModel(m.app)
 				return m, nil
 			}
 		}
@@ -159,8 +169,9 @@ func (m AppModel) View() string {
 	width := int(float32(m.app.canvas.width) / widthCof)
 	height := int(float32(m.app.canvas.height) / heightCof)
 	menuStyle := lipgloss.NewStyle().Border(lipgloss.HiddenBorder())
-	view := menuStyle.Render(m.menu.View())
+	view := menuStyle.Render(lipgloss.NewStyle().AlignVertical(lipgloss.Top).Render(m.menu.View()))
 	view = lipgloss.JoinHorizontal(lipgloss.Center, view, m.content.View())
+	view = lipgloss.JoinVertical(lipgloss.Left, label, view)
 	return lipgloss.Place(
 		width,
 		height,

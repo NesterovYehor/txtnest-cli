@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -40,19 +41,34 @@ func (m *keyInputModel) Init() tea.Cmd {
 
 /* VIEW */
 func (m *keyInputModel) View() string {
-	codeInputView := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		PaddingLeft(2).
-		PaddingRight(2).
-		MarginBottom(1).
-		Render(m.codeInput.View())
+	// Create the viewport
+	view := viewport.New(int(float32(m.app.canvas.width)*0.6), int(float32(m.app.canvas.height)*0.6))
 
+	// Calculate padding to center the TextInput
+	viewportWidth := view.Width
+	viewportHeight := view.Height
+	textInputWidth := lipgloss.Width(m.codeInput.View())
+	textInputHeight := lipgloss.Height(m.codeInput.View())
+
+	paddingTop := (viewportHeight - textInputHeight) / 2
+	paddingLeft := (viewportWidth - textInputWidth) / 2
+
+	// Center the TextInput within the viewport
+	codeInputView := lipgloss.NewStyle().
+		PaddingTop(paddingTop).
+		PaddingLeft(paddingLeft).
+		Border(lipgloss.HiddenBorder()).
+		Render(m.codeInput.View())
+	view.SetContent(codeInputView)
+
+	// Render the menu below
 	menu := lipgloss.NewStyle().PaddingRight(5).Render("Esc to return")
 	if len([]rune(m.codeInput.Value())) == 8 {
 		menu = lipgloss.JoinHorizontal(lipgloss.Center, menu, "Enter to read paste")
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Center, codeInputView, menu)
+	// Combine the viewport and menu
+	return lipgloss.JoinVertical(lipgloss.Center, view.View(), menu)
 }
 
 /* UPDATE */
@@ -73,4 +89,3 @@ func (m *keyInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.codeInput, cmd = m.codeInput.Update(msg)
 	return m, cmd
 }
-

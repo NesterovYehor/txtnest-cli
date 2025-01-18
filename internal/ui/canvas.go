@@ -5,8 +5,8 @@ import (
 )
 
 const (
-    border = "#E6EBE0"
-    color = "#E6EBE0"
+	border = "#E6EBE0"
+	color  = "#E6EBE0"
 )
 
 type Canvas struct {

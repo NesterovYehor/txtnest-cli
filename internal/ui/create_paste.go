@@ -42,8 +42,8 @@ func NewCreatePasteModel(app *App) CreatePasteModel {
 		ta := textarea.New()
 		ta.Placeholder = "Enter text..."
 		ta.ShowLineNumbers = false
-		ta.SetWidth(int(float32(app.canvas.width) * 0.65))
-		ta.SetHeight(int(float32(app.canvas.height) * 0.7))
+		ta.SetWidth(int(float32(app.canvas.width) * 0.6))
+		ta.SetHeight(int(float32(app.canvas.height) * 0.6))
 		ta.Prompt = ""
 		ta.CharLimit = 1000000
 		ta.Focus()
@@ -114,7 +114,7 @@ func (m CreatePasteModel) viewMainMenu() string {
 		}
 		s += fmt.Sprintf("%s %s\n", cursor, choice)
 	}
-	return lipgloss.NewStyle().Border(lipgloss.HiddenBorder()).Render(s)
+	return lipgloss.NewStyle().Render(s)
 }
 
 func (m CreatePasteModel) viewExpirationMenu() string {
@@ -130,7 +130,7 @@ func (m CreatePasteModel) viewExpirationMenu() string {
 		}
 		s += fmt.Sprintf("%s %s\n", cursor, choice)
 	}
-	return lipgloss.NewStyle().Border(lipgloss.HiddenBorder()).Render(s)
+	return lipgloss.NewStyle().Render(s)
 }
 
 /* UPDATE HELP FUNCS*/
