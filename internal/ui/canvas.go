@@ -17,7 +17,7 @@ type Canvas struct {
 
 func NewCanvas() *Canvas {
 	return &Canvas{
-		style: lipgloss.NewStyle().Bold(true).Border(lipgloss.ThickBorder()).BorderForeground(lipgloss.Color(border)).Align(lipgloss.Center),
+		style: lipgloss.NewStyle().Bold(true).Border(lipgloss.HiddenBorder()).BorderForeground(lipgloss.Color(border)).Align(lipgloss.Center),
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/NesterovYehor/txtnest-cli/internal/models"
 )
 
 type Paste struct {
@@ -13,8 +15,8 @@ type Paste struct {
 
 func (c *Client) CreatePaste(content string, expiration string) (string, error) {
 	body := map[string]any{
-		"content": content,
-        "expiration_date": calculateExpiration(expiration),
+		"content":         content,
+		"expiration_date": calculateExpiration(expiration),
 	}
 
 	resp, err := c.doRequest("POST", "/v1/upload", body, nil)
@@ -34,6 +36,24 @@ func (c *Client) CreatePaste(content string, expiration string) (string, error) 
 	return response.Key, nil
 }
 
+func (c *Client) FetchPaste(key string) (*models.Paste, error) {
+	body := map[string]any{
+		"key": key,
+	}
+
+	resp, err := c.doRequest("GET", "/v1/download", body, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var paste models.Paste
+
+	err = json.NewDecoder(resp.Body).Decode(&paste)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to decode htpt response, err: %v", err)
+	}
+	return &paste, err
+}
 
 func calculateExpiration(choice string) time.Time {
 	switch choice {
@@ -60,4 +80,3 @@ func calculateExpiration(choice string) time.Time {
 		return time.Time{}
 	}
 }
-

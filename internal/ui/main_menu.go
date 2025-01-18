@@ -1,66 +1,48 @@
 package ui
 
 import (
-	"fmt"
-
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// MenuModel manages the state of the menu.
 type MenuModel struct {
-	menuChoices []string
-	app         *App
-	cursor      int
+	menu list.Model
 }
 
-func NewMenuModle(app *App) MenuModel {
-	return MenuModel{
-		menuChoices: []string{"Create Paste", "Read Paste", "Exit"},
-		app:      app,
-		cursor:      0,
-	}
-}
-
-func (m MenuModel) Init() tea.Cmd {
+// Init initializes the MenuModel.
+func (m *MenuModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m MenuModel) View() string {
-	s := "Main Menu:\n\n"
-	for i, choice := range m.menuChoices {
-		cursor := " "
-		if m.cursor == i {
-			cursor = "->"
-		}
-		s += fmt.Sprintf("%s %s\n", cursor, choice)
-	}
-	return s
+// View renders the menu.
+func (m *MenuModel) View() string {
+	return m.menu.View()
 }
 
-func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update handles user input.
+func (m *MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "up":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case "down":
-			if m.cursor < len(m.menuChoices)-1 {
-				m.cursor++
-			}
-		case "esc":
-			return nil, tea.Quit
-		case "enter":
-			switch m.cursor {
+		switch msg.Type {
+		case tea.KeyEsc:
+			return m, tea.Quit
+		case tea.KeyEnter:
+			switch m.menu.Index() {
 			case 0:
-				return NewCreatePasteModel(m.app), nil
+				// Implement NewCreatePasteModel logic
 			case 1:
-				fmt.Println(1)
+				// Implement NewCodeInputModel logic
 			case 2:
-				fmt.Println(2)
+				// Handle account logic
+			case 3:
 				return m, tea.Quit
 			}
+		default:
+			m.menu, cmd = m.menu.Update(msg)
+			return m, nil
 		}
 	}
-	return m, nil
+	return m, cmd
 }

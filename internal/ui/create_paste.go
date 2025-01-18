@@ -2,8 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"sync"
 
-	"github.com/NesterovYehor/txtnest-cli/internal/api"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -24,44 +24,51 @@ type CreatePasteModel struct {
 	textArea       textarea.Model
 	app            *App
 	menu           menuModel
-	httpClient     *api.Client
 	expirationMenu expirationSubMenu
 	inTextAreaMode bool
 	selectedExpiry string
 	error          error
 }
 
-// NewCreatePasteModel initializes the CreatePasteModel
+// Singleton instance
+var (
+	instance *CreatePasteModel
+	once     sync.Once
+)
+
+// NewCreatePasteModel initializes the CreatePasteModel as a singleton
 func NewCreatePasteModel(app *App) CreatePasteModel {
-	ta := textarea.New()
-	ta.Placeholder = "Enter text..."
-	ta.ShowLineNumbers = false
-	ta.SetWidth(int(float32(app.Canvas.width) * 0.9))
-	ta.SetHeight(int(float32(app.Canvas.height) * 0.9))
-	ta.Prompt = ""
-	ta.Focus()
+	once.Do(func() {
+		ta := textarea.New()
+		ta.Placeholder = "Enter text..."
+		ta.ShowLineNumbers = false
+		ta.SetWidth(int(float32(app.canvas.width) * 0.65))
+		ta.SetHeight(int(float32(app.canvas.height) * 0.7))
+		ta.Prompt = ""
+		ta.CharLimit = 1000000
+		ta.Focus()
 
-	return CreatePasteModel{
-		textArea:   ta,
-		app:        app,
-		menu: menuModel{
-			Choices: []string{"Create New Paste", "Clear Paste", "Set Expiration", "Exit"},
-			Cursor:  0,
-		},
-		expirationMenu: expirationSubMenu{
-			Choices: []string{"Never", "1m", "10m", "30m", "1h", "1d", "1w", "1m (1 month)", "1y (1 year)"},
-			Cursor:  0,
-			Active:  false,
-		},
-		inTextAreaMode: true,
-	}
-}
-
-/* INIT */
+		instance = &CreatePasteModel{
+			textArea: ta,
+			app:      app,
+			menu: menuModel{
+				Choices: []string{"Create New Paste", "Set Expiration", "Clear Paste", "Exit"},
+				Cursor:  0,
+			},
+			expirationMenu: expirationSubMenu{
+				Choices: []string{"Never", "1m", "10m", "30m", "1h", "1d", "1w", "1m (1 month)", "1y (1 year)"},
+				Cursor:  0,
+				Active:  false,
+			},
+			inTextAreaMode: true,
+		}
+	})
+	return *instance
+} /* INIT */
 
 // Init initializes the model
 func (m CreatePasteModel) Init() tea.Cmd {
-	return nil
+	return m.textArea.Cursor.BlinkCmd()
 }
 
 /* VIEW */
@@ -131,7 +138,7 @@ func (m CreatePasteModel) viewExpirationMenu() string {
 func (m CreatePasteModel) updateTextArea(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg.Type {
-	case tea.KeyEsc:
+	case tea.KeyCtrlS:
 		m.inTextAreaMode = false
 		m.textArea.Blur()
 	default:
@@ -142,8 +149,6 @@ func (m CreatePasteModel) updateTextArea(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m CreatePasteModel) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
-	case tea.KeyEsc:
-		return m, tea.Quit
 	case tea.KeyUp:
 		if m.menu.Cursor > 0 {
 			m.menu.Cursor--
@@ -152,20 +157,25 @@ func (m CreatePasteModel) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.menu.Cursor < len(m.menu.Choices)-1 {
 			m.menu.Cursor++
 		}
+	case tea.KeyTab:
+		m.inTextAreaMode = true
+		m.textArea.Focus()
+		return m, nil
 	case tea.KeyEnter:
 		switch m.menu.Cursor {
 		case 0: // Save Paste
-			key, err := m.httpClient.CreatePaste(m.textArea.Value(), m.expirationMenu.Choices[m.expirationMenu.Cursor])
+			key, err := m.app.client.CreatePaste(m.textArea.Value(), m.expirationMenu.Choices[m.expirationMenu.Cursor])
 			if err != nil {
 				m.error = err
+				fmt.Println(err)
 			}
-			fmt.Println("Paste saved with content:", m.textArea.Value(), "Expiration:", m.selectedExpiry, "The kay to get a paste is:", key)
-		case 1: // Clear Text
 			m.textArea.Reset()
-		case 2: // Set Expiration
+			fmt.Println(key)
+			return m, nil
+		case 1: // Set Expiration
 			m.expirationMenu.Active = true
-		case 3: // Exit
-			return m, tea.Quit
+		case 2: // Clear Text
+			m.textArea.Reset()
 		}
 	}
 	return m, nil
