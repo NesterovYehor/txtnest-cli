@@ -45,4 +45,3 @@ func LoadConfig() (*Config, error) {
 		BackendURL: backendURL,
 	}, nil
 }
-

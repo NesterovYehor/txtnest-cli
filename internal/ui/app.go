@@ -16,8 +16,6 @@ const label = `
  \__|/_/\_\ \__||_| |_| \___||___/ \__|
     `
 
-type page = int
-
 const (
 	widthCof  = 0.5
 	heightCof = 0.6

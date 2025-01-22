@@ -22,25 +22,37 @@ func newAboutModel(app *App) aboutModel {
 
 	// Define the message for the about screen
 	message := `
-Welcome to TextNest!
+Welcome to TextNest! It's a Pastebin-like app for the terminal, built entirely in Go. The most exciting part of this project for me has been learning how to build the backend from scratch. 
 
-This is a Pastebin-like app for the terminal, fully written in Go. 
-The most exciting and important part of this journey for me is learning and building the backend from scratch.
+TextNest allows users to create and manage text-based pastes through an anonymous SSH interface. The backend is designed with a microservices architecture, making it modular and scalable. The main goal is to provide fast and reliable access to your pastes while keeping things simple and efficient.
 
-This is my first ever backend and CLI project and the progect isn't finished still and there many things to do,
-so I’d love to hear your advice and feedback to help me grow as a developer.
+Key Features:
+- Anonymous SSH Access: Create and manage pastes without needing an account.
+- Microservices Architecture: Different services (API, upload, download) working together seamlessly.
+- gRPC & Protobufs: Used for high-performance communication between services.
+- Kafka: Helps manage data consistency, especially in cases where several services need to work together or when data safety is a priority.
+- Scalable Storage: Blob storage on Amazon S3 and metadata stored in PostgreSQL.
+- Redis Caching: Speeds up access to frequently used data.
 
-Here are the project links:
+Technologies:
+- Go: The main language used for backend development.
+- gRPC & Protobufs: For communication between services.
+- Kafka: To ensure reliable data handling and consistency.
+- PostgreSQL, Redis, Amazon S3: For data storage and caching.
+
+This is my first backend project, and it’s still a work in progress, with plenty of features yet to be built. I’d love to hear your feedback or advice to help me improve as a developer.
+
+Check out the project repositories:
 - Backend repository: https://github.com/NesterovYehor/textnest
 - CLI tool repository: https://github.com/NesterovYehor/txtnest-cli
 
-If you’d like to share your thoughts or connect, feel free to reach out on Discord: Nest.
+Feel free to reach out if you want to chat or share your thoughts! 
+You can find me on Discord: https://discordapp.com/users/591678870973841428 or Twiter(X): https://x.com/_n3st_?s=21.
 
-Thank you for checking out my project!
+Thanks for checking out my project!
 ` // Set the content of the viewport
 	view.SetContent(
 		lipgloss.NewStyle().
-			Align(lipgloss.Center).
 			Height(height).
 			Width(width).
 			Render(message),

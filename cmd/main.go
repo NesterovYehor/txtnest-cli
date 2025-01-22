@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -17,7 +18,7 @@ import (
 	"github.com/charmbracelet/wish/activeterm"
 	"github.com/charmbracelet/wish/bubbletea"
 	"github.com/charmbracelet/wish/logging"
-	gossh "golang.org/x/crypto/ssh"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -46,14 +47,11 @@ func main() {
 		wish.WithMiddleware(bubbletea.Middleware(func(sess ssh.Session) (tea.Model, []tea.ProgramOption) {
 			return appModel, []tea.ProgramOption{tea.WithAltScreen()}
 		}), activeterm.Middleware(), // Bubble Tea apps usually require a PTY.
+			anonymousMiddleware,
 			logging.Middleware()), wish.WithPublicKeyAuth(func(_ ssh.Context, key ssh.PublicKey) bool {
 			return true
 		}),
-		wish.WithKeyboardInteractiveAuth(
-			func(ctx ssh.Context, challenger gossh.KeyboardInteractiveChallenge) bool {
-				return true
-			},
-		))
+	)
 	if err != nil {
 		log.Fatalf("Could not start SSH server: %v", err)
 	}
@@ -71,3 +69,23 @@ func main() {
 	s.Shutdown(ctx)
 	log.Println("SSH server shutting down...")
 }
+func anonymousMiddleware(next ssh.Handler) ssh.Handler {
+	return func(s ssh.Session) {
+		// Generate a unique session ID
+		sessionID := uuid.New().String()
+
+		// Log the session ID (optional)
+		log.Printf("New anonymous session: %s", sessionID)
+
+		// Welcome the user
+		fmt.Fprintln(s, "Welcome to the anonymous SSH app!")
+		fmt.Fprintf(s, "Your session ID: %s\n", sessionID)
+		fmt.Fprintln(s, "Use this app to create and manage pastes anonymously.")
+
+		// Pass the session to the next handler
+		if next != nil {
+			next(s)
+		}
+	}
+}
+
