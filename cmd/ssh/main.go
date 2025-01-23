@@ -23,7 +23,7 @@ import (
 
 func main() {
 	// Load configuration from environment variables or use defaults
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadSSHConfig()
 	if err != nil {
 		log.Fatal("Failed to load config")
 	}
@@ -69,6 +69,7 @@ func main() {
 	s.Shutdown(ctx)
 	log.Println("SSH server shutting down...")
 }
+
 func anonymousMiddleware(next ssh.Handler) ssh.Handler {
 	return func(s ssh.Session) {
 		// Generate a unique session ID
@@ -88,4 +89,3 @@ func anonymousMiddleware(next ssh.Handler) ssh.Handler {
 		}
 	}
 }
-

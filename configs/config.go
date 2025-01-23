@@ -3,25 +3,17 @@ package config
 import (
 	"fmt"
 	"os"
-
-	"github.com/joho/godotenv"
 )
 
 // Config struct holds the SSH and backend configuration details
-type Config struct {
+type SSHConfig struct {
 	SSHPort    string
 	PrivateKey []byte
 	BackendURL string
 }
 
 // LoadConfig loads the configuration values from environment variables
-func LoadConfig() (*Config, error) {
-	// Load environment variables from .env file located in the config folder
-	err := godotenv.Load(".env")
-	if err != nil {
-		return nil, fmt.Errorf("Error loading .env file")
-	}
-
+func LoadSSHConfig() (*SSHConfig, error) {
 	// Get environment variables
 	sshPort := os.Getenv("SSH_PORT")
 	if sshPort == "" {
@@ -34,14 +26,32 @@ func LoadConfig() (*Config, error) {
 	}
 
 	// Read private key
-	privateKey, err := os.ReadFile("ssh_host_key")
+	sshHostKeyPath := os.Getenv("SSH_HOST_KEY_PATH")
+	privateKey, err := os.ReadFile(sshHostKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load private key: %w", err)
 	}
 
-	return &Config{
+	return &SSHConfig{
 		SSHPort:    sshPort,
 		PrivateKey: privateKey,
+		BackendURL: backendURL,
+	}, nil
+}
+
+// Config struct holds the SSH and backend configuration details
+type CliConfig struct {
+	BackendURL string
+}
+
+// LoadConfig loads the configuration values from environment variables
+func LoadCliConfig() (*CliConfig, error) {
+	backendURL := os.Getenv("BACKEND_URL")
+	if backendURL == "" {
+		return nil, fmt.Errorf("backend URL is required")
+	}
+
+	return &CliConfig{
 		BackendURL: backendURL,
 	}, nil
 }
