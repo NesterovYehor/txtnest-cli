@@ -26,3 +26,4 @@ go.work.sum
 ./config/.env
 ssh_host_key.pub
 ssh_host_key
+output.log
