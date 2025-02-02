@@ -1,180 +1,280 @@
 package ui
 
 import (
-	"github.com/NesterovYehor/txtnest-cli/internal/api"
+	"context"
+	"math"
+
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-const label = `
- _          _                      _   
-| |        | |                    | |  
-| |_ __  __| |_  _ __    ___  ___ | |_ 
-| __|\ \/ /| __|| '_ \  / _ \/ __|| __|
-| |_  >  < | |_ | | | ||  __/\__ \| |_ 
- \__|/_/\_\ \__||_| |_| \___||___/ \__|
-    `
-
-const (
-	widthCof  = 0.5
-	heightCof = 0.6
+type (
+	page = int
+	size = int
 )
 
-var choices = []list.Item{
-	Choice{title: "Create Paste", description: "Create a new paste"},
-	Choice{title: "Read Paste", description: "View pastes"},
-	Choice{title: "Account", description: "Manage your account"},
-	Choice{title: "About", description: "Details about the project"},
-	Choice{title: "Exit", description: "Exit the application"},
+const (
+	createPage page = iota
+	readPage
+	inputKeyPage
+	accountPage
+	aboutPage
+)
+
+const (
+	undersized size = iota
+	small
+	medium
+	large
+)
+
+type model struct {
+	ready           bool
+	page            page
+	isMenuActive    bool
+	state           state
+	context         context.Context
+	rednder         *lipgloss.Renderer
+	viewportWidth   int
+	viewportHeight  int
+	widthContainer  int
+	heightContainer int
+	widthContent    int
+	heightContent   int
+	size            size
+	accessToken     string
+	viewport        viewport.Model
+	hasScroll       bool
+}
+type state struct {
+	menu        menuState
+	createPaste createPasteState
+	footer      footerState
+	account     accountState
+	keyInput    keyInputState
+	readPaste   readPasteState
 }
 
-// Choice represents a single menu item.
-type Choice struct {
-	title       string
-	description string
-}
-
-// FilterValue implements the list.Item interface.
-func (c Choice) FilterValue() string {
-	return c.title
-}
-
-// Title implements the list.Item interface.
-func (c Choice) Title() string {
-	return c.title
-}
-
-// Description implements the list.Item interface.
-func (c Choice) Description() string {
-	return c.description
-}
-
-// App encapsulates the global state of the application
-type App struct {
-	client *api.Client
-	canvas *Canvas
-}
-
-// AppModel represents the main application model
-type AppModel struct {
-	app        *App
-	isMenuMode bool
-	menu       list.Model
-	content    tea.Model
-}
-
-// NewAppModel creates the main application model with the config
-func NewAppModel(backendURL string) AppModel {
-	cvs := NewCanvas()
-	httpClient := api.NewClient(backendURL) // Use the backendURL from config
-	menu := list.New(choices, list.NewDefaultDelegate(), 0, 0)
-	menu.DisableQuitKeybindings()
-	menu.SetShowHelp(false)
-	menu.Title = "Menu"
-	app := &App{
-		canvas: cvs,
-		client: httpClient,
+func NewModel(render *lipgloss.Renderer) (tea.Model, error) {
+	ctx := context.Background()
+	result := model{
+		context:      ctx,
+		page:         createPage,
+		rednder:      render,
+		isMenuActive: true,
+		state: state{
+			menu:    menuState{},
+			account: accountState{},
+			footer: footerState{
+				commands: []footerCommand{
+					{key: "↑/↓", value: "navigate"},
+					{key: "enter", value: "select"},
+				},
+			},
+		},
 	}
-	return AppModel{
-		menu:       menu,
-		app:        app,
-		isMenuMode: true,
-	}
+	return result, nil
 }
 
-// Init initializes the AppModel
-func (m AppModel) Init() tea.Cmd {
+func (m model) Init() tea.Cmd {
 	return nil
 }
 
-// Update updates the AppModel based on incoming messages
-func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
+func (m model) SwitchPage(page page) model {
+	m.page = page
+	return m
+}
 
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		width := int(float32(msg.Width) * widthCof)
-		height := int(float32(msg.Height) * heightCof)
-		m.menu.SetSize(width/3, height/2)
-		m.app.canvas.Resize(width, height)
-		m.content = NewCreatePasteModel(m.app)
-
-	case tea.KeyMsg:
-		if !m.isMenuMode && msg.Type == tea.KeyEsc {
-			m.isMenuMode = true
-			return m, nil
+		m.viewportHeight = msg.Height
+		m.viewportWidth = msg.Width
+		switch {
+		case m.viewportWidth < 30 || m.viewportHeight < 10:
+			m.size = undersized
+			m.widthContainer = m.viewportWidth
+			m.heightContainer = m.viewportHeight
+		case m.viewportWidth < 60:
+			m.size = small
+			m.widthContainer = m.viewportWidth
+			m.heightContainer = m.viewportHeight
+		case m.viewportWidth < 80:
+			m.size = medium
+			m.widthContainer = 60
+			m.heightContainer = int(math.Min(float64(msg.Height), 30))
+		default:
+			m.size = large
+			m.widthContainer = 80
+			m.heightContainer = int(math.Min(float64(msg.Height), 40))
 		}
-		if m.isMenuMode {
-			return m.updateMenu(msg)
-		}
-		m.content, cmd = m.content.Update(msg)
-		return m, cmd
-	}
-
-	return m, cmd
-}
-
-func (m AppModel) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch msg := msg.(type) {
+		m.widthContent = m.widthContainer - 4
+		m = m.updateViewport()
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyCtrlQ:
 			return m, tea.Quit
-		case tea.KeyEnter:
-			// Handle menu selection dynamically
-			switch choice := m.menu.SelectedItem().(Choice); choice.title {
-			case "Create Paste":
-				m.isMenuMode = false
-				return m, nil
-			case "Read Paste":
-				m.isMenuMode = false
-				return m, nil
-			case "Account":
-				m.isMenuMode = false
-				return m, nil
-			case "Exit":
+		case tea.KeyEsc:
+			if m.isMenuActive {
 				return m, tea.Quit
 			}
-
-		case tea.KeyDown, tea.KeyUp:
-			m.menu, cmd = m.menu.Update(msg)
-			switch choice := m.menu.SelectedItem().(Choice); choice.title {
-			case "Create Paste":
-				m.content = NewCreatePasteModel(m.app)
-				return m, nil
-			case "Read Paste":
-				m.content = newKeyInputModel(m.app)
-				return m, nil
-			case "Account":
-				m.content = newAccountModel(m.app)
-				return m, nil
-			case "About":
-				m.content = newAboutModel(m.app)
-				return m, nil
+			if !m.isMenuActive {
+				m.isMenuActive = true
+				m.updateFooter()
 			}
+
+		case tea.KeyEnter:
+			if m.isMenuActive {
+				m.isMenuActive = false
+				m.updateFooter()
+			} else {
+				return m.upadateContent(msg)
+			}
+		default:
+			return m.upadateContent(msg)
 		}
 	}
-	return m, cmd
+	return m, nil
 }
 
-// View renders the AppModel's UI
-func (m AppModel) View() string {
-	if m.app.canvas.width == 0 {
-		return "Loading"
+func (m *model) updateFooter() {
+	if m.isMenuActive {
+		m.state.footer.commands = []footerCommand{
+			{key: "↑/↓", value: "navigate"},
+			{key: "Enter", value: "select"},
+		}
+	} else {
+		switch m.page {
+		case createPage:
+			m.state.footer.commands = []footerCommand{
+				{key: "↑/↓", value: "navigate"},
+				{key: "Enter", value: "select"},
+				{key: "Tab", value: "menu/text-area"},
+				{key: "Esc", value: "exit"},
+				{key: "Ctrl+Q", value: "quit"},
+			}
+		case readPage:
+			m.state.footer.commands = []footerCommand{
+				{key: "↑/↓", value: "up/down"},
+				{key: "Esc", value: "back"},
+				{key: "Ctrl+Q", value: "quit"},
+			}
+		case accountPage:
+			m.state.footer.commands = []footerCommand{
+				{key: "Enter", value: "next"},
+				{key: "Tab", value: "change tabs"},
+				{key: "Esc", value: "back"},
+				{key: "Ctrl+Q", value: "quit"},
+			}
+		case inputKeyPage:
+			m.state.footer.commands = []footerCommand{
+				{key: "Enter", value: "confirm key"},
+				{key: "Esc", value: "back"},
+			}
+		default:
+			m.state.footer.commands = []footerCommand{}
+		}
 	}
-	width := int(float32(m.app.canvas.width) / widthCof)
-	height := int(float32(m.app.canvas.height) / heightCof)
-	menuStyle := lipgloss.NewStyle().Border(lipgloss.HiddenBorder())
-	view := menuStyle.Render(lipgloss.NewStyle().AlignVertical(lipgloss.Top).Render(m.menu.View()))
-	view = lipgloss.JoinHorizontal(lipgloss.Center, view, m.content.View())
-	view = lipgloss.JoinVertical(lipgloss.Left, label, view)
-	return lipgloss.Place(
-		width,
-		height,
-		lipgloss.Center,
-		lipgloss.Center,
-		m.app.canvas.Render(view),
-	)
+}
+
+func (m model) upadateContent(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.isMenuActive {
+		return m.UpdateMenu(msg)
+	} else {
+		switch m.page {
+		case createPage:
+			return m.UpdateCreatePaste(msg)
+		case inputKeyPage:
+			return m.InputKeyUpadte(msg)
+		case readPage:
+			return m.ReadPasteUpdate(msg)
+		case accountPage:
+			return m.UpdateAccount(msg)
+		}
+	}
+	return m, nil
+}
+
+func (m model) updateViewport() model {
+	verticalMargin := int(float64(m.viewportHeight) * 0.1)
+	width := m.widthContainer - 4
+	m.heightContent = m.heightContainer - verticalMargin
+	if !m.ready {
+		m.viewport = viewport.New(width, m.heightContent)
+		m.viewport.HighPerformanceRendering = false
+		m.ready = true
+	} else {
+		m.viewport.Width = width
+		m.viewport.GotoTop()
+	}
+
+	m.state.menu.list = list.New(choices, list.NewDefaultDelegate(), m.widthContent/3, m.heightContainer)
+
+	m.state.createPaste = createPasteState{
+		inTextAreaMode: true,
+		input: &createPasteInput{
+			expirationMenu: expirationMenu,
+			textArea:       textarea.New(),
+		},
+	}
+	m.state.createPaste.input.textArea.SetHeight(m.heightContent)
+	m.state.createPaste.input.textArea.SetWidth(m.widthContent)
+	m.state.createPaste.input.textArea.ShowLineNumbers = false
+	m.state.createPaste.input.textArea.Prompt = ""
+	m.state.createPaste.input.textArea.Focus()
+	m.state.createPaste.input.textArea.CharLimit = 0
+	m.state.account = m.newAccountState()
+	m.state.keyInput = m.newKeyInputModel()
+	m.state.account.forms[m.state.account.activeTab].Init()
+	return m
+}
+
+func (m model) View() string {
+	if m.isMenuActive {
+		return lipgloss.Place(
+			m.viewportWidth,
+			m.viewportHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			lipgloss.JoinVertical(
+				lipgloss.Bottom,
+				lipgloss.JoinHorizontal(
+					lipgloss.Center,
+					m.MenuView(),
+					m.getContent(),
+				),
+				m.FooterView(),
+			),
+		)
+	} else {
+		return lipgloss.Place(
+			m.viewportWidth,
+			m.viewportHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			lipgloss.JoinVertical(
+				lipgloss.Bottom,
+				m.getContent(), // Only show content when menu is inactive
+				m.FooterView(),
+			),
+		)
+	}
+}
+
+func (m model) getContent() string {
+	page := ""
+	switch m.page {
+	case createPage:
+		page = m.CreatePasteView()
+	case inputKeyPage:
+		page = m.InputKeyView()
+	case readPage:
+		page = m.ReadPasteView()
+	case accountPage:
+		page = m.ViewAccount()
+	}
+	return page
 }

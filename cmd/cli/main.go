@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"os"
 
-	config "github.com/NesterovYehor/txtnest-cli/configs"
 	"github.com/NesterovYehor/txtnest-cli/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func main() {
@@ -18,13 +18,10 @@ func main() {
 	defer log.Close()
 	slog.SetDefault(slog.New(slog.NewTextHandler(log, &slog.HandlerOptions{})))
 
-	cfg, err := config.LoadCliConfig()
+	model, err := ui.NewModel(lipgloss.DefaultRenderer())
 	if err != nil {
-		fmt.Printf("log: %v\n", err)
-		return
+		panic(err)
 	}
-
-	model := ui.NewAppModel(cfg.BackendURL)
 	if _, err := tea.NewProgram(model, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)

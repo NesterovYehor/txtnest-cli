@@ -13,6 +13,7 @@ import (
 	config "github.com/NesterovYehor/txtnest-cli/configs"
 	"github.com/NesterovYehor/txtnest-cli/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish"
 	"github.com/charmbracelet/wish/activeterm"
@@ -29,7 +30,10 @@ func main() {
 	}
 
 	// Initialize the AppModel with the backend URL
-	appModel := ui.NewAppModel(cfg.BackendURL)
+	appModel, err := ui.NewModel(lipgloss.DefaultRenderer())
+    if err != nil {
+        panic(err)
+    }
 
 	// Setup signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,8 +46,8 @@ func main() {
 
 	// SSH server setup
 	s, err := wish.NewServer(
-		wish.WithAddress(net.JoinHostPort("0.0.0.0", cfg.SSHPort)),
-		wish.WithHostKeyPEM(cfg.PrivateKey), // Use your SSH private key here
+		wish.WithAddress(net.JoinHostPort(cfg.SSHHost, cfg.SSHPort)),
+		ssh.AllocatePty(),
 		wish.WithMiddleware(bubbletea.Middleware(func(sess ssh.Session) (tea.Model, []tea.ProgramOption) {
 			return appModel, []tea.ProgramOption{tea.WithAltScreen()}
 		}), activeterm.Middleware(), // Bubble Tea apps usually require a PTY.
@@ -58,7 +62,7 @@ func main() {
 
 	// Start the SSH server in a goroutine
 	go func() {
-		log.Println("Starting SSH server on port 2222...")
+		log.Printf("Starting SSH server on port %v...", cfg.SSHPort)
 		if err := s.ListenAndServe(); err != nil && !errors.Is(err, ssh.ErrServerClosed) {
 			log.Fatalf("Could not start SSH server: %v", err)
 		}

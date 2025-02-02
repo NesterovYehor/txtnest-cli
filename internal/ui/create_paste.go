@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,77 +19,53 @@ type expirationSubMenu struct {
 	Active  bool
 }
 
-type CreatePasteModel struct {
+var menu = menuModel{
+	Choices: []string{"Create New Paste", "Set Expiration", "Clear Paste", "Exit"},
+	Cursor:  0,
+}
+
+var expirationMenu = expirationSubMenu{
+	Choices: []string{"Never", "1m", "10m", "30m", "1h", "1d", "1w", "1m (1 month)", "1y (1 year)"},
+	Cursor:  0,
+	Active:  false,
+}
+
+type createPasteInput struct {
 	textArea       textarea.Model
-	app            *App
-	menu           menuModel
 	expirationMenu expirationSubMenu
+}
+
+type createPasteState struct {
+	input          *createPasteInput
 	inTextAreaMode bool
 	selectedExpiry string
 	error          error
 }
 
-// Singleton instance
-var (
-	instance *CreatePasteModel
-	once     sync.Once
-)
-
-// NewCreatePasteModel initializes the CreatePasteModel as a singleton
-func NewCreatePasteModel(app *App) CreatePasteModel {
-	once.Do(func() {
-		ta := textarea.New()
-		ta.Placeholder = "Enter text..."
-		ta.ShowLineNumbers = false
-		ta.SetWidth(int(float32(app.canvas.width) * 0.6))
-		ta.SetHeight(int(float32(app.canvas.height) * 0.6))
-		ta.Prompt = ""
-		ta.CharLimit = 1000000
-		ta.Focus()
-
-		instance = &CreatePasteModel{
-			textArea: ta,
-			app:      app,
-			menu: menuModel{
-				Choices: []string{"Create New Paste", "Set Expiration", "Clear Paste", "Exit"},
-				Cursor:  0,
-			},
-			expirationMenu: expirationSubMenu{
-				Choices: []string{"Never", "1m", "10m", "30m", "1h", "1d", "1w", "1m (1 month)", "1y (1 year)"},
-				Cursor:  0,
-				Active:  false,
-			},
-			inTextAreaMode: true,
-		}
-	})
-	return *instance
-} /* INIT */
-
-// Init initializes the model
-func (m CreatePasteModel) Init() tea.Cmd {
-	return m.textArea.Cursor.BlinkCmd()
-}
-
 /* VIEW */
 
 // View renders the UI
-func (m CreatePasteModel) View() string {
-	textAreaView := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Render(m.textArea.View())
-	menuView := m.viewMainMenu()
-	expirationView := m.viewExpirationMenu()
-	return lipgloss.JoinVertical(lipgloss.Left, "New Paste", textAreaView, menuView, expirationView)
+func (m *model) CreatePasteView() string {
+	if m.size == undersized {
+		return ""
+	} else {
+		textAreaView := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Render(m.state.createPaste.input.textArea.View())
+		menuView := m.viewMainMenu()
+		expirationView := m.viewExpirationMenu()
+		return lipgloss.JoinVertical(lipgloss.Left, "New Paste", textAreaView, menuView, expirationView)
+	}
 }
 
 /* UPDATE */
 
 // Update handles user input and updates the state
-func (m CreatePasteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) UpdateCreatePaste(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case m.inTextAreaMode:
+		case m.state.createPaste.inTextAreaMode:
 			return m.updateTextArea(msg)
-		case m.expirationMenu.Active:
+		case expirationMenu.Active:
 			return m.updateExpirationMenu(msg)
 		default:
 			return m.updateMainMenu(msg)
@@ -101,15 +76,15 @@ func (m CreatePasteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 /* VIEW HELP FUNCS*/
 
-func (m CreatePasteModel) viewMainMenu() string {
-	if m.expirationMenu.Active {
+func (m *model) viewMainMenu() string {
+	if m.state.createPaste.input.expirationMenu.Active {
 		return ""
 	}
 
 	s := "Menu:\n"
-	for i, choice := range m.menu.Choices {
+	for i, choice := range menu.Choices {
 		cursor := "[ ]"
-		if m.menu.Cursor == i {
+		if menu.Cursor == i {
 			cursor = "[x]"
 		}
 		s += fmt.Sprintf("%s %s\n", cursor, choice)
@@ -117,15 +92,15 @@ func (m CreatePasteModel) viewMainMenu() string {
 	return lipgloss.NewStyle().Render(s)
 }
 
-func (m CreatePasteModel) viewExpirationMenu() string {
-	if !m.expirationMenu.Active {
+func (m *model) viewExpirationMenu() string {
+	if !m.state.createPaste.input.expirationMenu.Active {
 		return ""
 	}
 
 	s := "Set Expiration:\n"
-	for i, choice := range m.expirationMenu.Choices {
+	for i, choice := range expirationMenu.Choices {
 		cursor := "[ ]"
-		if m.expirationMenu.Cursor == i {
+		if expirationMenu.Cursor == i {
 			cursor = "[x]"
 		}
 		s += fmt.Sprintf("%s %s\n", cursor, choice)
@@ -135,68 +110,64 @@ func (m CreatePasteModel) viewExpirationMenu() string {
 
 /* UPDATE HELP FUNCS*/
 
-func (m CreatePasteModel) updateTextArea(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *model) updateTextArea(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg.Type {
-	case tea.KeyCtrlS:
-		m.inTextAreaMode = false
-		m.textArea.Blur()
+	case tea.KeyTab:
+		m.state.createPaste.inTextAreaMode = false
+		m.state.createPaste.input.textArea.Blur()
 	default:
-		m.textArea, cmd = m.textArea.Update(msg)
+		m.state.createPaste.input.textArea, cmd = m.state.createPaste.input.textArea.Update(msg)
 	}
 	return m, cmd
 }
 
-func (m CreatePasteModel) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *model) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyUp:
-		if m.menu.Cursor > 0 {
-			m.menu.Cursor--
+		if menu.Cursor > 0 {
+			menu.Cursor--
 		}
 	case tea.KeyDown:
-		if m.menu.Cursor < len(m.menu.Choices)-1 {
-			m.menu.Cursor++
+		if menu.Cursor < len(menu.Choices)-1 {
+			menu.Cursor++
 		}
 	case tea.KeyTab:
-		m.inTextAreaMode = true
-		m.textArea.Focus()
+		m.state.createPaste.inTextAreaMode = true
+		m.state.createPaste.input.textArea.Focus()
 		return m, nil
 	case tea.KeyEnter:
-		switch m.menu.Cursor {
+		switch menu.Cursor {
 		case 0: // Save Paste
-			key, err := m.app.client.CreatePaste(m.textArea.Value(), m.expirationMenu.Choices[m.expirationMenu.Cursor])
-			if err != nil {
-				m.error = err
-				fmt.Println(err)
-			}
-			m.textArea.Reset()
-			fmt.Println(key)
+			m.state.createPaste.input.textArea.Reset()
 			return m, nil
 		case 1: // Set Expiration
-			m.expirationMenu.Active = true
+			expirationMenu.Active = true
 		case 2: // Clear Text
-			m.textArea.Reset()
+			m.state.createPaste.input.textArea.Reset()
+		case 3:
+			m.isMenuActive = true
 		}
 	}
 	return m, nil
 }
 
-func (m CreatePasteModel) updateExpirationMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *model) updateExpirationMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.expirationMenu.Active = false
+		expirationMenu.Active = false
 	case tea.KeyUp:
-		if m.expirationMenu.Cursor > 0 {
-			m.expirationMenu.Cursor--
+		if expirationMenu.Cursor > 0 {
+			expirationMenu.Cursor--
 		}
 	case tea.KeyDown:
-		if m.expirationMenu.Cursor < len(m.expirationMenu.Choices)-1 {
-			m.expirationMenu.Cursor++
+		if expirationMenu.Cursor < len(expirationMenu.Choices)-1 {
+			expirationMenu.Cursor++
 		}
 	case tea.KeyEnter:
-		m.selectedExpiry = m.expirationMenu.Choices[m.expirationMenu.Cursor]
-		fmt.Println("Selected expiration:", m.selectedExpiry)
-		m.expirationMenu.Active = false
+		m.state.createPaste.selectedExpiry = expirationMenu.Choices[expirationMenu.Cursor]
+		fmt.Println("Selected expiration:", m.state.createPaste.selectedExpiry)
+		expirationMenu.Active = false
 	}
 	return m, nil
 }

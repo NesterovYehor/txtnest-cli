@@ -3,54 +3,91 @@ package ui
 import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 )
 
+type tab int
+
+const (
+	loginTab tab = iota
+	registerTab
+)
+
 // AccountModel represents the account screen
-type accountModel struct {
-	app      *App
-	viewport viewport.Model
-	message  string
+type accountState struct {
+	activeTab tab
+	header    string
+	forms     map[tab]*huh.Form
+	viewport  viewport.Model
 }
 
 // NewAccountModel creates a new AccountModel
-func newAccountModel(app *App) accountModel {
-	// Create the viewport with dimensions matching the canvas
-	width := int(float32(app.canvas.width) * 0.6)
-	height := int(float32(app.canvas.height) * 0.7)
+func (m model) newAccountState() accountState {
+	width := int(m.widthContent)
+	height := int(m.widthContent)
 	view := viewport.New(width, height)
 
-	// Define the message for the account screen
-	message := "Account and paste management is in development stage."
-
-	// Set the content of the viewport
-	view.SetContent(
-		lipgloss.NewStyle().
-			Align(lipgloss.Center).
-			Height(height).
-			Width(width).
-			Render(message),
+	loginForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Email").Key("email"),
+			huh.NewInput().Title("Password").Key("password").EchoMode(huh.EchoModePassword),
+		),
 	)
 
-	return accountModel{
-		app:      app,
-		viewport: view,
-		message:  message,
+	registerForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Name").Key("name"),
+			huh.NewInput().Title("Email").Key("email"),
+			huh.NewInput().Title("Password").Key("password").EchoMode(huh.EchoModePassword),
+		),
+	)
+
+	return accountState{
+		activeTab: loginTab,
+		header:    "LogIn",
+		viewport:  view,
+		forms: map[tab]*huh.Form{
+			loginTab:    loginForm,
+			registerTab: registerForm,
+		},
 	}
 }
 
-// Init initializes the AccountModel
-func (m accountModel) Init() tea.Cmd {
-	return nil
+func (m model) UpdateAccount(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			return m, tea.Quit
+		case "tab":
+			if m.state.account.activeTab == loginTab {
+				m.state.account.activeTab = registerTab
+				m.state.account.header = "Register"
+			} else {
+				m.state.account.activeTab = loginTab
+				m.state.account.header = "LogIn"
+			}
+			return m, m.state.account.forms[m.state.account.activeTab].Init()
+		}
+	}
+
+	updatedModel, cmd := m.state.account.forms[m.state.account.activeTab].Update(msg)
+	if form, ok := updatedModel.(*huh.Form); ok {
+		m.state.account.forms[m.state.account.activeTab] = form
+	}
+
+	return m, cmd
 }
 
-// Update handles messages for the AccountModel
-func (m accountModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	return m, nil
-}
+func (m model) ViewAccount() string {
+	m.viewport.SetContent(
+		lipgloss.JoinVertical(
+			lipgloss.Top,
+			m.state.account.header,
+			m.state.account.forms[m.state.account.activeTab].View(),
+		),
+	)
 
-// View renders the AccountModel's UI
-func (m accountModel) View() string {
 	return m.viewport.View()
 }
-

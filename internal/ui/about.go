@@ -8,16 +8,15 @@ import (
 
 // AboutModel represents the about screen
 type aboutModel struct {
-	app      *App
 	viewport viewport.Model
 	message  string
 }
 
 // NewAboutModel creates a new AboutModel
-func newAboutModel(app *App) aboutModel {
+func newAboutModel() aboutModel {
 	// Create the viewport with dimensions matching the canvas
-	width := int(float32(app.canvas.width) * 0.6)
-	height := int(float32(app.canvas.height) * 0.7)
+	width := int(19)
+	height := int(19)
 	view := viewport.New(width, height)
 
 	// Define the message for the about screen
@@ -59,7 +58,6 @@ Thanks for checking out my project!
 	)
 
 	return aboutModel{
-		app:      app,
 		viewport: view,
 		message:  message,
 	}
