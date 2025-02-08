@@ -6,25 +6,32 @@ import (
 	"github.com/charmbracelet/huh"
 )
 
-type CreatePasteForm struct {
-	content        string
-	expirationTime time.Time
+type PasteForm struct {
+	Content    string
+	Expiration time.Duration
 }
 
-func NewCreatePasteForm() *huh.Form {
-	var form CreatePasteForm
-	return huh.NewForm(
+func NewCreatePasteForm() *PasteForm {
+	var form PasteForm
+	huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Content").
-				Value(&form.content),
+				Value(&form.Content),
 		),
 		huh.NewGroup(
-			huh.NewSelect[string]().
+			huh.NewSelect[time.Duration]().
 				Key("Paste Expiration").
-				Options(huh.NewOptions("1m", "10m", "30m", "1h", "12h", "1d", "1w")...).
+				Options(
+					huh.NewOption("1 Hour", time.Hour),
+					huh.NewOption("1 Day", 24*time.Hour),
+					huh.NewOption("1 Week", 168*time.Hour),
+				).
 				Title("Choose expiraty time").
-				Description("After this time the paste will be automaticly deleted"),
+				Description("After this time the paste will be automaticly deleted").
+				Value(&form.Expiration),
 		),
-	)
+	).Run()
+
+	return &form
 }
