@@ -28,3 +28,4 @@ ssh_host_key.pub
 ssh_host_key
 output.log
 config.yaml
+tokens.db

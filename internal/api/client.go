@@ -89,17 +89,20 @@ func (c *ApiClient) SignUp(email, name, password string) error {
 	return nil
 }
 
-func (c *ApiClient) LogIn(email, password string) error {
+func (c *ApiClient) LogIn(email, password string) (*models.TokenData, error) {
 	user := map[string]any{
 		"email":    email,
 		"password": password,
 	}
 	resp, err := c.makeReuest("GET", "/login", user, nil)
 	if err != nil {
-		return fmt.Errorf("Failed registration: %v", err)
+		return nil, fmt.Errorf("Failed registration: %v", err)
 	}
-	fmt.Println(resp)
-	return nil
+	var jwt models.TokenData
+	if err := json.NewDecoder(resp.Body).Decode(&jwt); err != nil {
+		return nil, fmt.Errorf("Failed to decode response:%v", err)
+	}
+	return &jwt, nil
 }
 
 func (c *ApiClient) makeReuest(method, endpoint string, body any, headers map[string]string) (*http.Response, error) {
