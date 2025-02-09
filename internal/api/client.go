@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NesterovYehor/txtnest-cli/config"
 	"github.com/NesterovYehor/txtnest-cli/internal/models"
 )
 
@@ -24,12 +25,13 @@ type ApiClient struct {
 }
 
 // GetInstance returns singleton instance (thread-safe)
-func GetInstance(baseUrl string) *ApiClient {
+func GetInstance() *ApiClient {
+	apiCfg := config.Get().Api
 	once.Do(func() {
 		instance = &ApiClient{
-			baseUrl: baseUrl,
+			baseUrl: apiCfg.BaseUrl,
 			httpClient: &http.Client{
-				Timeout: 10 * time.Second,
+				Timeout: apiCfg.Timeout,
 				Transport: &http.Transport{
 					MaxIdleConns:       100,
 					IdleConnTimeout:    90 * time.Second,
@@ -51,12 +53,13 @@ func (c *ApiClient) CreatePaste(expirationDate time.Time, content []byte) (strin
 		return "", err
 	}
 	defer ress.Body.Close()
-	var key string
-	if err := json.NewDecoder(ress.Body).Decode(&key); err != nil {
+	var output struct {
+		Key string `json:"key"`
+	}
+	if err := json.NewDecoder(ress.Body).Decode(&output); err != nil {
 		return "", fmt.Errorf("Failed to decode http response: %v", err)
 	}
-
-	return key, nil
+	return output.Key, nil
 }
 
 func (c *ApiClient) FetchPaste(key string) (*models.Paste, error) {
@@ -71,6 +74,32 @@ func (c *ApiClient) FetchPaste(key string) (*models.Paste, error) {
 	}
 
 	return paste, nil
+}
+
+func (c *ApiClient) SignUp(email, name, password string) error {
+	user := map[string]any{
+		"name":     name,
+		"email":    email,
+		"password": password,
+	}
+	_, err := c.makeReuest("POST", "/signup", user, nil)
+	if err != nil {
+		return fmt.Errorf("Failed registration: %v", err)
+	}
+	return nil
+}
+
+func (c *ApiClient) LogIn(email, password string) error {
+	user := map[string]any{
+		"email":    email,
+		"password": password,
+	}
+	resp, err := c.makeReuest("GET", "/login", user, nil)
+	if err != nil {
+		return fmt.Errorf("Failed registration: %v", err)
+	}
+	fmt.Println(resp)
+	return nil
 }
 
 func (c *ApiClient) makeReuest(method, endpoint string, body any, headers map[string]string) (*http.Response, error) {
@@ -95,7 +124,8 @@ func (c *ApiClient) makeReuest(method, endpoint string, body any, headers map[st
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to process http request: %v", err)
+		fmt.Println(c.baseUrl + endpoint)
+		return nil, fmt.Errorf("Failed to process http request: %v; Status code: %v", err, resp.StatusCode)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()

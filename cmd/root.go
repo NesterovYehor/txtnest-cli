@@ -21,4 +21,7 @@ func Execute() error {
 
 func init() {
 	rootCmd.AddCommand(signupCmd)
+	rootCmd.AddCommand(fetchCmd)
+	rootCmd.AddCommand(createCmd)
+    rootCmd.AddCommand(loginCmd)
 }
