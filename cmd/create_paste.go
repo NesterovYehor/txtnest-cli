@@ -7,6 +7,7 @@ import (
 
 	"github.com/NesterovYehor/txtnest-cli/internal/api"
 	huhforms "github.com/NesterovYehor/txtnest-cli/internal/huh_forms"
+	"github.com/NesterovYehor/txtnest-cli/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -20,11 +21,10 @@ var createCmd = &cobra.Command{
 	Short: "Create new paste",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := api.GetInstance()
-
-		// Get content from either:
-		// 1. File (-f flag)
-		// 2. Direct input (argument)
-		// 3. Interactive form (if none provided)
+		tokenStore, err := storage.GetTokenStorage()
+		if err != nil {
+			fmt.Println(err)
+		}
 		var contentData []byte
 		switch {
 		case filePath != "":
@@ -44,6 +44,12 @@ var createCmd = &cobra.Command{
 		}
 
 		expTime := time.Now().Add(expiration)
+		if tokens, err := tokenStore.GetTokens(); err == nil {
+			if err := client.SetTokens(tokens); err != nil {
+				fmt.Printf("Failed to set new tokens to api client:%v", err)
+				return
+			}
+		}
 		key, err := client.CreatePaste(expTime, contentData)
 		if err != nil {
 			fmt.Printf("Error creating paste: %v\n", err)

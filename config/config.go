@@ -18,10 +18,6 @@ type APIConfig struct {
 	MaxRetries int           `yaml:"max_retries"`
 }
 
-type DBConfig struct {
-	filePath string
-}
-
 var appConfig = &Config{} // Initialize to avoid nil pointer
 
 func Init() error {
@@ -53,7 +49,6 @@ func Init() error {
 			MaxRetries: viper.GetInt("api.max_retries"),
 		},
 	}
-
 	return nil
 }
 
