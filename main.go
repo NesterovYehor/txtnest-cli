@@ -20,7 +20,7 @@ func main() {
 
 func init() {
 	_ = config.Init()
-    tokensDB, err := sql.Open("sqlite3", ":memory:")
+	tokensDB, err := sql.Open("sqlite3", "./tokens.db")
 	if err != nil {
 		fmt.Printf("Failed to conect to sqlite: %v", err)
 		return
@@ -33,7 +33,7 @@ func init() {
 	client := api.GetInstance()
 	tokenStore, err := storage.GetTokenStorage()
 	if err != nil {
-		// Handle error
+		fmt.Println(err)
 	}
 	client.RegisterTokenUpdateCallback(func(newTokens *models.TokenData) error {
 		return tokenStore.SaveTokens(newTokens)

@@ -26,6 +26,7 @@ var createCmd = &cobra.Command{
 			fmt.Println(err)
 		}
 		var contentData []byte
+		var title string
 		switch {
 		case filePath != "":
 			data, err := os.ReadFile(filePath)
@@ -38,7 +39,11 @@ var createCmd = &cobra.Command{
 			contentData = []byte(args[0])
 		default:
 			// Launch Huh form if no input provided
-			form := huhforms.NewCreatePasteForm()
+			form, err := huhforms.NewCreatePasteForm()
+			if err != nil {
+				fmt.Printf("Error runing a create form:%v", err)
+			}
+			title = form.Title
 			contentData = []byte(form.Content)
 			expiration = form.Expiration
 		}
@@ -50,7 +55,7 @@ var createCmd = &cobra.Command{
 				return
 			}
 		}
-		key, err := client.CreatePaste(expTime, contentData)
+		key, err := client.CreatePaste(title, expTime, contentData)
 		if err != nil {
 			fmt.Printf("Error creating paste: %v\n", err)
 			return

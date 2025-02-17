@@ -59,7 +59,6 @@ func (c *ApiClient) SetTokens(tokens *models.TokenData) error {
 
 	// Check if access token needs refresh
 	if !validation.ValidateAccessToken(tokens.ExpiresAt) {
-		// Use existing refresh token to get new tokens
 		if err := c.refreshTokens(); err != nil {
 			return fmt.Errorf("failed to refresh tokens: %w", err)
 		}
@@ -91,22 +90,29 @@ func GetInstance() *ApiClient {
 	return instance
 }
 
-func (c *ApiClient) CreatePaste(expirationDate time.Time, content []byte) (string, error) {
+func (c *ApiClient) CreatePaste(title string, expirationDate time.Time, content []byte) (string, error) {
 	start := time.Now()
 	newPaste := map[string]any{
 		"expiration_date": expirationDate,
-		"content":         content,
+		"title":           title,
 	}
-	ress, err := c.makeReuest("POST", "/upload", newPaste, nil)
+	ress, err := c.makeRequest("POST", "/upload", newPaste, nil)
 	if err != nil {
 		return "", err
 	}
 	defer ress.Body.Close()
 	var output struct {
-		Key string `json:"key"`
+		Key       string `json:"key"`
+		UploadURL string `json:"upload_url"`
 	}
 	if err := json.NewDecoder(ress.Body).Decode(&output); err != nil {
 		return "", fmt.Errorf("Failed to decode http response: %v", err)
+	}
+	buf := bytes.NewBufferString(string(content))
+	fmt.Println(buf)
+	_, err = c.makeContentRequest("PUT", output.UploadURL, buf)
+	if err != nil {
+		return "", fmt.Errorf("Failed to create new paste: %v", err)
 	}
 	// Calculate and print the elapsed time
 	elapsed := time.Since(start)
@@ -115,28 +121,34 @@ func (c *ApiClient) CreatePaste(expirationDate time.Time, content []byte) (strin
 }
 
 func (c *ApiClient) FetchPaste(key string) (*models.Paste, error) {
-	// Record the start time
 	start := time.Now()
 
-	// Make the request
-	ress, err := c.makeReuest("GET", "/download", map[string]any{"key": key}, nil)
+	ress, err := c.makeRequest("GET", "/download", map[string]any{"key": key}, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer ress.Body.Close()
 
-	// Decode the response into a Paste model
-	var paste *models.Paste
+	var paste models.Paste
 	if err := json.NewDecoder(ress.Body).Decode(&paste); err != nil {
-		fmt.Println(ress)
-		return nil, fmt.Errorf("failed to decode http response: %v", err)
+		return nil, fmt.Errorf("failed to decode metadata: %v", err)
 	}
 
-	// Calculate and print the elapsed time
-	elapsed := time.Since(start)
-	fmt.Printf("Request and decode took: %v\n", elapsed)
+	contentRess, err := c.makeContentRequest("GET", paste.ContentURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer contentRess.Body.Close()
 
-	return paste, nil
+	content, err := io.ReadAll(contentRess.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read content: %v", err)
+	}
+	paste.Content = string(content)
+
+	fmt.Printf("FetchPaste took: %v\n", time.Since(start))
+
+	return &paste, nil
 }
 
 func (c *ApiClient) SignUp(email, name, password string) error {
@@ -145,7 +157,7 @@ func (c *ApiClient) SignUp(email, name, password string) error {
 		"email":    email,
 		"password": password,
 	}
-	_, err := c.makeReuest("POST", "/signup", user, nil)
+	_, err := c.makeRequest("POST", "/signup", user, nil)
 	if err != nil {
 		return fmt.Errorf("Failed registration: %v", err)
 	}
@@ -157,7 +169,7 @@ func (c *ApiClient) LogIn(email, password string) (*models.TokenData, error) {
 		"email":    email,
 		"password": password,
 	}
-	resp, err := c.makeReuest("GET", "/login", user, nil)
+	resp, err := c.makeRequest("GET", "/login", user, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Failed registration: %v", err)
 	}
@@ -168,12 +180,26 @@ func (c *ApiClient) LogIn(email, password string) (*models.TokenData, error) {
 	return &jwt, nil
 }
 
+func (c *ApiClient) FetchAllTokens() ([]models.Metadata, error) {
+	resp, err := c.makeRequest("GET", "/download/all", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch list of pastes: %w", err)
+	}
+	defer resp.Body.Close()
+	var output struct {
+		Pastes []models.Metadata `json:"pastes"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&output); err != nil {
+		return nil, fmt.Errorf("error decoding JSON response: %w", err)
+	}
+	fmt.Println(output)
+
+	return output.Pastes, nil
+}
+
 func (c *ApiClient) refreshTokens() error {
-	c.tokenMu.Lock()
-
-	defer c.tokenMu.Unlock()
-
-	resp, err := c.makeReuest("POST", "/refresh", map[string]string{
+	resp, err := c.makeRequest("POST", "/refresh", map[string]string{
 		"refresh_token": c.refreshToken,
 	}, nil)
 	if err != nil {
@@ -194,7 +220,7 @@ func (c *ApiClient) refreshTokens() error {
 	return nil
 }
 
-func (c *ApiClient) makeReuest(method, endpoint string, body any, headers map[string]string) (*http.Response, error) {
+func (c *ApiClient) makeRequest(method, endpoint string, body any, headers map[string]string) (*http.Response, error) {
 	var reqBody io.Reader
 	if body != nil {
 		jsonData, err := json.Marshal(body)
@@ -217,15 +243,37 @@ func (c *ApiClient) makeReuest(method, endpoint string, body any, headers map[st
 	if c.accessToken != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", c.accessToken))
 	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		fmt.Println(c.baseUrl + endpoint)
 		return nil, fmt.Errorf("Failed to process http request: %v, Status Code:%v", err, resp.StatusCode)
 	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		errBody, _ := io.ReadAll(resp.Body)
 		return nil, errors.New(string(errBody))
+	}
+
+	return resp, nil
+}
+
+func (c *ApiClient) makeContentRequest(method, url string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %v", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		errBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(errBody))
 	}
 
 	return resp, nil

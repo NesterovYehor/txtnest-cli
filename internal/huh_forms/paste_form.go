@@ -7,13 +7,19 @@ import (
 )
 
 type PasteForm struct {
+	Title      string
 	Content    string
 	Expiration time.Duration
 }
 
-func NewCreatePasteForm() *PasteForm {
+func NewCreatePasteForm() (*PasteForm, error) {
 	var form PasteForm
-	huh.NewForm(
+	if err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Title").
+				Value(&form.Content),
+		),
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Content").
@@ -31,7 +37,9 @@ func NewCreatePasteForm() *PasteForm {
 				Description("After this time the paste will be automaticly deleted").
 				Value(&form.Expiration),
 		),
-	).Run()
+	).Run(); err != nil {
+		return nil, err
+	}
 
-	return &form
+	return &form, nil
 }
