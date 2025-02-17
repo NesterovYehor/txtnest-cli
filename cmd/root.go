@@ -24,4 +24,5 @@ func init() {
 	rootCmd.AddCommand(fetchCmd)
 	rootCmd.AddCommand(createCmd)
     rootCmd.AddCommand(loginCmd)
+    rootCmd.AddCommand(listCmd)
 }
