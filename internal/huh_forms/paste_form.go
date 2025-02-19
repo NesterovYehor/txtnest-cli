@@ -18,7 +18,7 @@ func NewCreatePasteForm() (*PasteForm, error) {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Title").
-				Value(&form.Content),
+				Value(&form.Title),
 		),
 		huh.NewGroup(
 			huh.NewInput().

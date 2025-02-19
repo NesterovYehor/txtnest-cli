@@ -3,25 +3,33 @@ package tui
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/NesterovYehor/txtnest-cli/internal/api"
 	"github.com/charmbracelet/bubbles/textarea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // PasteEditor allows editing of a paste's content.
 type PasteEditor struct {
 	textarea textarea.Model
+	client   *api.ApiClient
 }
 
 // NewPasteEditor returns a new PasteEditor with the given initial content.
-func NewPasteEditor(initialContent string) *PasteEditor {
+func NewPasteEditor(key string, client *api.ApiClient) *PasteEditor {
+	paste, err := client.FetchPaste(key)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
 	ta := textarea.New()
-	ta.SetValue(initialContent)
+	ta.SetValue(paste.Content)
 	ta.Focus()
 	ta.CharLimit = 0 // no character limit
 	ta.Prompt = "> "
 	return &PasteEditor{
 		textarea: ta,
+		client:   client,
 	}
 }
 
@@ -50,4 +58,3 @@ func (pe *PasteEditor) View() string {
 func (pe *PasteEditor) Content() string {
 	return pe.textarea.Value()
 }
-

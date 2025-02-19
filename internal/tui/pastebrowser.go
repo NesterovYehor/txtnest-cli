@@ -18,11 +18,10 @@ const (
 
 // PasteBrowser manages the UI for listing and editing pastes.
 type PasteBrowser struct {
-	state      pbState
-	list       *PastesList
-	editor     *PasteEditor
-	selectedID string
-	client     *api.ApiClient
+	state  pbState
+	list   *PastesList
+	editor *PasteEditor
+	client *api.ApiClient
 }
 
 // NewPasteBrowser creates a new PasteBrowser instance.
@@ -52,17 +51,7 @@ func (pb PasteBrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		pb.list = newList.(*PastesList)
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			if keyMsg.String() == "enter" || keyMsg.String() == " " {
-				selected := pb.list.Selected()
-				if selected == nil {
-					return pb, cmd
-				}
-				pb.selectedID = selected.Key
-				paste, err := pb.client.FetchPaste(selected.Key)
-				if err != nil {
-					fmt.Println("Error fetching paste:", err)
-					return pb, tea.Quit
-				}
-				pb.editor = NewPasteEditor(paste.Content)
+				pb.editor = NewPasteEditor(pb.list.Selected().Key, pb.client)
 				pb.state = pbEditState
 				return pb, pb.editor.Init()
 			}
@@ -75,8 +64,10 @@ func (pb PasteBrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			switch keyMsg.String() {
 			case "ctrl+s":
-				// In a real application, send pb.editor.Content() to your API.
-				fmt.Printf("Saving paste %s with content:\n%s\n", pb.selectedID, pb.editor.Content())
+				err := pb.client.UpdatePaste(pb.list.Selected().Key, pb.editor.Content())
+				if err != nil {
+					fmt.Println(err)
+				}
 				pb.state = pbListState
 				return pb, nil
 			case "esc":

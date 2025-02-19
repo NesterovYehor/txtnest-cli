@@ -94,4 +94,3 @@ func (pl *PastesList) Selected() *models.Metadata {
 	}
 	return &pl.pastes[pl.cursor]
 }
-
