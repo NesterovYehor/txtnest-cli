@@ -36,11 +36,10 @@ var listCmd = &cobra.Command{
 		}
 
 		model := tui.NewPasteBrowser(client, pastes)
-		p := tea.NewProgram(model)
+		p := tea.NewProgram(model, tea.WithAltScreen())
 		if _, err := p.Run(); err != nil {
 			fmt.Printf("Error displaying list of your pastes: %v\n", err)
 			return
 		}
 	},
 }
-

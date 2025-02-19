@@ -109,7 +109,6 @@ func (c *ApiClient) CreatePaste(title string, expirationDate time.Time, content 
 		return "", fmt.Errorf("Failed to decode http response: %v", err)
 	}
 	buf := bytes.NewBufferString(string(content))
-	fmt.Println(buf)
 	_, err = c.makeContentRequest("PUT", output.UploadURL, buf)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create new paste: %v", err)
@@ -198,6 +197,26 @@ func (c *ApiClient) FetchAllTokens() ([]models.Metadata, error) {
 	return output.Pastes, nil
 }
 
+func (c *ApiClient) UpdatePaste(key, content string) error {
+	output, err := c.makeRequest("GET", fmt.Sprintf("/update/%v", key), nil, nil)
+	if err != nil {
+		return err
+	}
+	var response struct {
+		Url string `json:"update_url"`
+	}
+	if err := json.NewDecoder(output.Body).Decode(&response); err != nil {
+		return fmt.Errorf("error decoding JSON response: %w", err)
+	}
+	buf := bytes.NewBufferString(string(content))
+	fmt.Println(buf)
+	_, err = c.makeContentRequest("PUT", response.Url, buf)
+	if err != nil {
+		return fmt.Errorf("Failed to create new paste: %v", err)
+	}
+	return nil
+}
+
 func (c *ApiClient) refreshTokens() error {
 	resp, err := c.makeRequest("POST", "/refresh", map[string]string{
 		"refresh_token": c.refreshToken,
@@ -246,8 +265,7 @@ func (c *ApiClient) makeRequest(method, endpoint string, body any, headers map[s
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		fmt.Println(c.baseUrl + endpoint)
-		return nil, fmt.Errorf("Failed to process http request: %v, Status Code:%v", err, resp.StatusCode)
+		return nil, fmt.Errorf("Failed to process http request: %v", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
